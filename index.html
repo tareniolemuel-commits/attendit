@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ATTEND-IT</title>
+<meta name="theme-color" content="#0b2545">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ATTEND-IT">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+:root{
+  --navy:#0b2545;--navy2:#13315c;--maroon:#b3272d;--gold:#cc5500;
+  --bg:#f3f1ea;--card:#ffffff;--border:#dedad0;--text:#232323;--muted:#6b6b6b;
+  --green:#2e7d4f;--red:#b3382c;--yellow:#a67a12;
+  --ease:cubic-bezier(.4,0,.2,1);--ease-spring:cubic-bezier(.16,1,.3,1);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{background-color:var(--bg);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");color:var(--text);font-family:'Segoe UI',Arial,sans-serif;}
+h1,h2,h3,.serif{font-family:Georgia,'Times New Roman',serif;}
+.shell{display:flex;min-height:100vh;}
+.sidebar{border-radius:0 28px 28px 0;width:230px;flex:0 0 230px;background:var(--navy);color:#e7e9f0;padding:26px 0;display:flex;flex-direction:column;transition:width .3s var(--ease);}
+.brand{padding:0 22px 22px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:14px;}
+.brand h1{margin:0;font-size:22px;letter-spacing:1px;color:#fff;}
+.brand p{margin:4px 0 0;font-size:11px;color:#a9b0c4;text-transform:uppercase;letter-spacing:1px;}
+.nav{position:relative;}
+.nav a{display:flex;align-items:center;gap:12px;padding:12px 22px;color:#c7cce0;text-decoration:none;font-size:14px;border-left:3px solid transparent;cursor:pointer;transition:background .2s var(--ease),color .2s var(--ease);position:relative;z-index:1;}
+.nav a:hover{background:rgba(255,255,255,.06);}
+.nav a.active{background:rgba(255,255,255,.09);color:#fff;font-weight:600;}
+.nav a .icon{font-size:16px;width:18px;text-align:center;flex:0 0 auto;}
+.nav-indicator{position:absolute;left:0;width:3px;background:var(--gold);top:0;height:0;opacity:0;transition:transform .3s var(--ease-spring),height .3s var(--ease-spring),opacity .2s var(--ease);}
+.sidebar .foot{margin-top:auto;padding:16px 22px 0;font-size:11px;color:#7d84a0;border-top:1px solid rgba(255,255,255,.12);}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:18px 34px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+.topbar h2{margin:0;font-size:20px;color:var(--navy);}
+.topbar p{margin:4px 0 0;color:var(--muted);font-size:13px;}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.clock-badge{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:22px;padding:8px 18px;}
+.clock-dot{width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite;}
+.clock-time{font-family:Georgia,serif;font-size:20px;font-weight:700;color:var(--navy);line-height:1;}
+.clock-date{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,125,79,.5);}70%{box-shadow:0 0 0 9px rgba(46,125,79,0);}100%{box-shadow:0 0 0 0 rgba(46,125,79,0);}}
+.view-switch{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;}
+.vs-btn{border:none;background:#fff;padding:8px 12px;font-size:13px;cursor:pointer;color:var(--muted);transition:background .25s var(--ease),color .25s var(--ease);}
+.vs-btn.active{background:var(--navy);color:#fff;}
+.content{flex:1;padding:28px 34px;overflow-y:auto;animation:fadeIn .4s var(--ease-spring);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes rowIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+.row-anim{animation:rowIn .35s var(--ease-spring) both;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:22px;margin-bottom:20px;transition:box-shadow .25s var(--ease);}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:22px;}
+.stat{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--navy);border-radius:20px;padding:16px 18px;transition:transform .25s var(--ease-spring);}
+.stat:hover{transform:translateY(-3px);}
+.stat .num{font-size:28px;font-weight:700;color:var(--navy);}
+.stat .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.stat.green{border-left-color:var(--green);}.stat.green .num{color:var(--green);}
+.stat.red{border-left-color:var(--maroon);}.stat.red .num{color:var(--maroon);}
+.stat.gold{border-left-color:var(--gold);}.stat.gold .num{color:var(--gold);}
+label{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;margin:16px 0 6px;}
+input[type=text],select{width:100%;padding:11px 16px;border-radius:16px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:14px;}
+input[type=text]:focus,select:focus{outline:none;border-color:var(--navy);}
+.btn{position:relative;overflow:hidden;display:inline-block;border:1px solid transparent;border-radius:16px;padding:11px 22px;font-size:14px;font-weight:600;cursor:pointer;transition:filter .2s var(--ease),transform .15s var(--ease);}
+.btn:hover{filter:brightness(.94);}
+.btn:active{transform:scale(.96);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-primary{background:var(--navy);color:#fff;}
+.btn-outline{background:#fff;color:var(--navy);border-color:var(--navy);}
+.btn-danger{background:var(--maroon);color:#fff;}
+.btn-block{display:block;width:100%;}
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.5);transform:scale(0);animation:rippleAnim .6s var(--ease-spring);pointer-events:none;}
+@keyframes rippleAnim{to{transform:scale(3);opacity:0;}}
+table{width:100%;border-collapse:collapse;font-size:14px;}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;padding:10px 12px;border-bottom:2px solid var(--navy);}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr.clickable{cursor:pointer;transition:background .2s var(--ease);}
+tr.clickable:hover{background:#f7f6f1;}
+.pill{padding:3px 12px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;}
+.pill-present{background:#e4f3e9;color:var(--green);}
+.pill-absent{background:#fbe7e4;color:var(--maroon);}
+.pill-late{background:#faf1dc;color:var(--yellow);}
+.badge-perfect{display:inline-block;background:#fdece0;color:var(--gold);border:1px solid var(--gold);border-radius:12px;padding:2px 10px;font-size:11px;font-weight:700;margin-left:8px;}
+.bar{background:#eae7dd;border-radius:999px;height:8px;width:100px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px;}
+.bar-fill{background:var(--navy);height:100%;width:0;transition:width 1.1s var(--ease-spring);}
+.msg{margin-top:14px;padding:11px 16px;border-radius:16px;font-size:13px;border-left:4px solid;}
+.msg-ok{background:#e4f3e9;color:var(--green);border-color:var(--green);}
+.msg-err{background:#fbe7e4;color:var(--maroon);border-color:var(--maroon);}
+.warn-banner{background:#fdece0;color:var(--yellow);border-left:4px solid var(--yellow);padding:10px 16px;font-size:12px;margin:0 34px;border-radius:0 0 14px 14px;}
+.row-list{max-height:440px;overflow-y:auto;}
+.section-title{font-size:13px;text-transform:uppercase;color:var(--muted);margin:0 0 12px;border-bottom:1px solid var(--border);padding-bottom:8px;}
+::-webkit-scrollbar{width:8px;}::-webkit-scrollbar-thumb{background:#cfcabb;border-radius:4px;}
+.heat-grid{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;max-width:420px;}
+.heat-cell{width:100%;padding-top:100%;border-radius:7px;background:#eae7dd;}
+.heat-cell.lvl1{background:#d9e8de;}.heat-cell.lvl2{background:#a9d1b8;}.heat-cell.lvl3{background:#5fae7d;}.heat-cell.lvl4{background:#2e7d4f;}
+.heat-legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:10px;}
+.heat-legend .heat-cell{width:12px;height:12px;padding-top:0;}
+.bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;border-radius:22px 22px 0 0;background:var(--navy);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around;z-index:10;}
+.bottom-nav a{display:flex;flex-direction:column;align-items:center;gap:2px;color:#aab0c6;font-size:10px;text-decoration:none;cursor:pointer;padding:4px 2px;flex:1;text-align:center;}
+.bottom-nav a .icon{font-size:18px;}
+.bottom-nav a.active{color:#fff;}
+.nfc-toast{position:fixed;right:20px;bottom:20px;max-width:320px;background:var(--card);border:1px solid var(--border);border-left:4px solid var(--navy);border-radius:20px;padding:14px 18px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:50;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .3s var(--ease-spring),transform .3s var(--ease-spring);}
+.nfc-toast.show{opacity:1;transform:translateY(0);pointer-events:auto;}
+.nfc-toast.ok{border-left-color:var(--green);}
+.nfc-toast.err{border-left-color:var(--maroon);}
+@keyframes confettiFall{to{transform:translateY(100vh) rotate(360deg);opacity:0;}}
+[data-view="tablet"] .sidebar{width:78px;flex:0 0 78px;}
+[data-view="tablet"] .brand p,[data-view="tablet"] .nav a .label{display:none;}
+[data-view="tablet"] .clock-date{display:none;}
+[data-view="mobile"] .sidebar{display:none;}
+[data-view="mobile"] .bottom-nav{display:flex;}
+[data-view="mobile"] .content{padding-bottom:86px;padding-left:16px;padding-right:16px;}
+[data-view="mobile"] .topbar{padding:14px 16px;}
+[data-view="mobile"] .warn-banner{margin:0 16px;}
+[data-view="mobile"] .clock-date{display:none;}
+[data-view="mobile"] .clock-time{font-size:16px;}
+[data-view="mobile"] .view-switch .vs-btn:first-child{display:none;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="nfcToast" class="nfc-toast" onclick="this.classList.remove('show')"></div>
+<script>
+let storageOK = true;
+try{ localStorage.setItem('attendit_test','1'); localStorage.removeItem('attendit_test'); }catch(e){ storageOK=false; }
+
+let students = [];
+try{ students = JSON.parse(localStorage.getItem('attendit_students')||'[]'); }catch(e){ students = []; }
+let sessions = [];
+try{ sessions = JSON.parse(localStorage.getItem('attendit_sessions')||'[]'); }catch(e){ sessions = []; }
+let currentSessionId = (function(){ try{ return localStorage.getItem('attendit_current_session'); }catch(e){ return null; } })();
+
+let state = { screen:'dashboard', selectedIndex:-1, prevScreen:'dashboard', searchTerm:'', searchResults:[], msg:'', msgErr:false,
+  editingDetail:false, listSort:'name', listFilterSection:'' };
+
+function save(){ try{ localStorage.setItem('attendit_students', JSON.stringify(students)); }catch(e){} }
+function saveSessions(){
+  try{
+    localStorage.setItem('attendit_sessions', JSON.stringify(sessions));
+    if(currentSessionId) localStorage.setItem('attendit_current_session', currentSessionId);
+    else localStorage.removeItem('attendit_current_session');
+  }catch(e){}
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function today(){ return new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
+function countStatus(s,status){ return s.attendance.filter(a=>a.status===status).length; }
+function pct(s){ const t=s.attendance.length; return t===0?0:(countStatus(s,'Present')/t*100); }
+function isPerfect(s){ return s.attendance.length>0 && countStatus(s,'Absent')===0 && countStatus(s,'Late')===0; }
+function badge(s){ return isPerfect(s) ? '<span class="badge-perfect">\u{1F3C5} Perfect</span>' : ''; }
+function go(screen){ state.screen=screen; state.msg=''; state.editingDetail=false; render(); }
+function pill(status){ const cls = status==='Present'?'pill-present':status==='Absent'?'pill-absent':'pill-late'; return `<span class="pill ${cls}">${status}</span>`; }
+function bar(p){ const w=Math.min(p,100); return `<span class="bar"><span class="bar-fill" data-w="${w}"></span></span>${p.toFixed(1)}%`; }
+function animateBars(){ document.querySelectorAll('.bar-fill[data-w]').forEach(el=>{ const w=el.dataset.w; requestAnimationFrame(()=>requestAnimationFrame(()=>{ el.style.width=w+'%'; })); }); }
+function animateStats(){
+  document.querySelectorAll('.stat .num[data-target]').forEach(el=>{
+    const target=parseFloat(el.dataset.target)||0, suffix=el.dataset.suffix||'', decimals=el.dataset.target.includes('.')?1:0;
+    const start=performance.now(), dur=700;
+    function step(t){ const p=Math.min((t-start)/dur,1); const eased=1-Math.pow(1-p,3); el.textContent=(target*eased).toFixed(decimals)+suffix; if(p<1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  });
+}
+function tickClock(){ const el=document.getElementById('liveClockTop'); if(el) el.textContent=new Date().toLocaleTimeString('en-US'); }
+setInterval(tickClock,1000);
+function updateNavIndicator(){
+  const active=document.querySelector('.nav a.active'), ind=document.getElementById('navIndicator');
+  if(active && ind){ ind.style.transform='translateY('+active.offsetTop+'px)'; ind.style.height=active.offsetHeight+'px'; ind.style.opacity='1'; }
+  else if(ind){ ind.style.opacity='0'; }
+}
+document.addEventListener('click', function(e){
+  const btn=e.target.closest('.btn'); if(!btn) return;
+  const rect=btn.getBoundingClientRect(), size=Math.max(rect.width,rect.height);
+  const span=document.createElement('span'); span.className='ripple';
+  span.style.width=span.style.height=size+'px';
+  span.style.left=(e.clientX-rect.left-size/2)+'px';
+  span.style.top=(e.clientY-rect.top-size/2)+'px';
+  btn.appendChild(span);
+  setTimeout(()=>span.remove(),650);
+});
+function fireConfetti(){
+  const colors=['#0b2545','#cc5500','#2e7d4f','#b3272d'];
+  for(let i=0;i<24;i++){
+    const el=document.createElement('div');
+    el.style.cssText='position:fixed;top:-10px;left:'+(Math.random()*100)+'vw;width:8px;height:8px;background:'+colors[i%colors.length]+';z-index:100;border-radius:2px;pointer-events:none;';
+    el.style.animation='confettiFall '+(1.6+Math.random())+'s ease-in forwards';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),2800);
+  }
+}
+
+let toastTimer=null;
+function showToast(msg,type){
+  const t=document.getElementById('nfcToast'); if(!t) return;
+  t.textContent=msg; t.className='nfc-toast show '+(type||'');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),5000);
+}
+
+/* ---- NFC ---- */
+async function globalScanNFC(){
+  if(!('NDEFReader' in window)){ showToast('NFC isn\u2019t supported on this browser/device.','err'); return; }
+  try{
+    showToast('Ready \u2014 tap the tag against the device now\u2026');
+    const reader = new NDEFReader();
+    await reader.scan();
+    let gotReading=false;
+    reader.onreading = (event) => { gotReading=true; handleScannedTag(event.serialNumber || 'TAG-'+Date.now()); };
+    reader.onreadingerror = () => showToast('A tag was sensed but couldn\u2019t be read.','err');
+    setTimeout(()=>{ if(!gotReading) showToast('No readable tag detected within 12s.','err'); },12000);
+  }catch(e){ showToast('NFC permission denied, or unavailable right now.','err'); }
+}
+function handleScannedTag(id){
+  const idx = students.findIndex(s=>s.id===id);
+  if(idx>=0){ recordAttendanceNow(idx); }
+  else{
+    const n = students.length+1;
+    students.push({id, name:'Student '+n, section:'Block A', attendance:[]});
+    save();
+    state.selectedIndex = students.length-1; state.prevScreen='dashboard';
+    go('detail'); state.editingDetail=true;
+    showToast('New tag registered as \u201cStudent '+n+'.\u201d Edit below if you\u2019d like.','ok');
+    render();
+  }
+}
+
+/* ---- Class sessions ---- */
+function getActiveSession(){ return sessions.find(s=>s.id===currentSessionId) || null; }
+function computeStatus(){
+  const sess=getActiveSession(); if(!sess) return 'Present';
+  return (Date.now()-sess.startTime)/60000 <= sess.lateThreshold ? 'Present' : 'Late';
+}
+function startClass(){
+  const label=(document.getElementById('sessionLabel').value.trim())||('Period '+(sessions.length+1));
+  const threshold=parseInt(document.getElementById('sessionThreshold').value,10)||30;
+  const sess={id:'sess-'+Date.now(), label, date:today(), startTime:Date.now(), endTime:null, lateThreshold:threshold};
+  sessions.push(sess); currentSessionId=sess.id; saveSessions();
+  showToast('\u201C'+label+'\u201D started. Scans within '+threshold+' min count as Present.','ok');
+  render();
+}
+function endClass(){
+  const sess=getActiveSession(); if(!sess) return;
+  let n=0;
+  students.forEach(s=>{
+    if(!s.attendance.some(a=>a.session===sess.label && a.date===sess.date)){ s.attendance.push({date:sess.date,status:'Absent',session:sess.label}); n++; }
+  });
+  sess.endTime=Date.now(); currentSessionId=null;
+  save(); saveSessions();
+  showToast('\u201C'+sess.label+'\u201D ended. '+n+' student(s) marked Absent.','ok');
+  render();
+}
+function recordAttendanceNow(idx){
+  const s=students[idx], status=computeStatus(), sess=getActiveSession();
+  s.attendance.push({date:today(), status, session: sess?sess.label:'Unscheduled'});
+  save();
+  showToast(s.name+' marked '+status+(sess?' \u2014 '+sess.label:'')+'.','ok');
+  const total=s.attendance.length;
+  if(total===1 || total%10===0) fireConfetti();
+  go('dashboard');
+}
+function sessionCounts(sess){
+  let present=0,absent=0,late=0;
+  students.forEach(s=>s.attendance.forEach(a=>{ if(a.session===sess.label && a.date===sess.date){ if(a.status==='Present')present++; else if(a.status==='Absent')absent++; else late++; } }));
+  return {present,absent,late};
+}
+
+/* ---- Backup ---- */
+function exportBackup(){
+  const data=JSON.stringify({students,sessions},null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='attendit-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function importBackup(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!Array.isArray(data.students)) throw new Error('bad file');
+      students=data.students; sessions=Array.isArray(data.sessions)?data.sessions:[];
+      currentSessionId=null; save(); saveSessions();
+      state.msg='Backup restored successfully.'; state.msgErr=false;
+      go('dashboard');
+    }catch(e){ state.msg='That file doesn\u2019t look like a valid ATTEND-IT backup.'; state.msgErr=true; render(); }
+  };
+  reader.readAsText(file);
+}
+
+/* ---- View mode ---- */
+function effectiveView(){
+  const m=localStorage.getItem('attendit_viewmode')||'auto'; if(m!=='auto') return m;
+  const w=window.innerWidth; return w<=680?'mobile':w<=1024?'tablet':'desktop';
+}
+function applyViewMode(){ document.documentElement.setAttribute('data-view', effectiveView()); }
+function setViewMode(m){ try{ localStorage.setItem('attendit_viewmode', m); }catch(e){} applyViewMode(); render(); }
+window.addEventListener('resize', ()=>{ if((localStorage.getItem('attendit_viewmode')||'auto')==='auto') applyViewMode(); });
+
+function msgBox(){ if(!state.msg) return ''; return `<div class="msg ${state.msgErr?'msg-err':'msg-ok'}">${esc(state.msg)}</div>`; }
+function avgRate(){ if(!students.length) return 0; return students.reduce((a,s)=>a+pct(s),0)/students.length; }
+function todayCount(status){ const d=today(); return students.reduce((a,s)=>a+s.attendance.filter(r=>r.date===d&&r.status===status).length,0); }
+function emptyState(icon,title,sub,ctaLabel,ctaFn){
+  return `<div style="text-align:center;padding:50px 20px">
+    <div style="font-size:40px;opacity:.35;margin-bottom:12px">${icon}</div>
+    <div style="font-weight:600;color:var(--navy);margin-bottom:4px">${title}</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:${ctaLabel?'18px':'0'}">${sub}</div>
+    ${ctaLabel? `<button class="btn btn-primary" onclick="${ctaFn}">${ctaLabel}</button>`:''}</div>`;
+}
+
+const NAV=[['dashboard','\u25A3','Dashboard'],['register','\u002B','Register Student'],['list','\u2630','Student List'],
+  ['recordSelect','\u2713','Record Attendance'],['search','\u26B2','Search Student'],['report','\u2637','Attendance Report'],
+  ['sessions','\u23F1','Session History'],['clear','\u2716','Data & Backup']];
+
+const SCREEN_TITLES={dashboard:['Dashboard','Overview of registered students and attendance'],
+  register:['Register Student','Add a new student to the roster'],list:['Student List','All currently registered students'],
+  recordSelect:['Record Attendance','Tap a student to instantly log them in'],search:['Search Student','Look up by full or partial name'],
+  report:['Attendance Report','Consolidated summary for all students'],detail:['Student Record','Full attendance history'],
+  sessions:['Session History','Past class periods and their outcomes'],
+  clear:['Data & Backup','Export, restore, or permanently clear records']};
+
+function isActive(key){
+  if(state.screen===key) return true;
+  if(key==='report' && state.screen==='detail' && state.prevScreen==='report') return true;
+  if(key==='dashboard' && state.screen==='detail' && state.prevScreen==='dashboard') return true;
+  return false;
+}
+function sidebar(){
+  return `<aside class="sidebar"><div class="brand"><h1 class="serif">ATTEND-IT</h1><p>Attendance Management System</p></div>
+    <nav class="nav">${NAV.map(n=>`<a class="${isActive(n[0])?'active':''}" onclick="go('${n[0]}')"><span class="icon">${n[1]}</span><span class="label">${n[2]}</span></a>`).join('')}<div class="nav-indicator" id="navIndicator"></div></nav>
+    <div class="foot">Local session \u2014 v1.3</div></aside>`;
+}
+function bottomNav(){
+  return `<nav class="bottom-nav">${NAV.map(n=>`<a class="${isActive(n[0])?'active':''}" onclick="go('${n[0]}')"><span class="icon">${n[1]}</span><span>${n[2].split(' ')[0]}</span></a>`).join('')}</nav>`;
+}
+function viewSwitcher(){
+  const cur=localStorage.getItem('attendit_viewmode')||'auto';
+  const opts=[['auto','Auto'],['desktop','\u{1F5A5}'],['tablet','\u25AD'],['mobile','\u{1F4F1}']];
+  return `<div class="view-switch">${opts.map(o=>`<button class="vs-btn ${cur===o[0]?'active':''}" onclick="setViewMode('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
+}
+function topbar(){
+  const t=SCREEN_TITLES[state.screen]||['',''];
+  return `<div class="topbar"><div><h2>${t[0]}</h2><p>${t[1]}</p></div>
+    <div class="topbar-right">
+      <button class="btn btn-outline btn-sm" onclick="globalScanNFC()">\u{1F4E1} NFC</button>
+      <div class="clock-badge"><span class="clock-dot"></span><div><div class="clock-time" id="liveClockTop"></div><div class="clock-date">${today()}</div></div></div>
+      ${viewSwitcher()}
+    </div></div>${storageOK?'':'<div class="warn-banner">\u26A0 Your browser is blocking local storage \u2014 changes here won\u2019t be saved. Try a normal (non-private) browser window.</div>'}`;
+}
+function backBtn(target){ return `<button class="btn btn-outline" onclick="go('${target}')" style="margin-top:18px">&lt; Back</button>`; }
+
+/* ---- Dashboard ---- */
+function sessionPanelHtml(){
+  const sess=getActiveSession();
+  if(sess){
+    const elapsedMin=Math.floor((Date.now()-sess.startTime)/60000);
+    return `<div class="card" style="border-left:4px solid var(--gold)"><div class="section-title">Class Session \u2014 Active</div>
+      <p><b>${esc(sess.label)}</b> started ${elapsedMin} min ago &nbsp;\u2022&nbsp; Late after ${sess.lateThreshold} min</p>
+      <button class="btn btn-danger" onclick="endClass()">End Class</button></div>`;
+  }
+  return `<div class="card"><div class="section-title">Class Session \u2014 Not Started</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:160px"><label style="margin:0 0 6px">Period Label</label><input type="text" id="sessionLabel" placeholder="Period ${sessions.length+1}"></div>
+      <div style="width:120px"><label style="margin:0 0 6px">Late After (min)</label><input type="text" id="sessionThreshold" value="30"></div>
+      <button class="btn btn-primary" onclick="startClass()">Start Class</button>
+    </div><p style="color:var(--muted);font-size:12px;margin:10px 0 0">Scans before a class starts are marked Present by default.</p></div>`;
+}
+function trendChartSvg(){
+  const past = sessions.filter(s=>s.endTime).slice(-10);
+  if(past.length<2) return `<div style="color:var(--muted);font-size:13px;padding:16px 0;text-align:center">Not enough ended sessions yet to chart a trend.</div>`;
+  const rates = past.map(sess=>{ const c=sessionCounts(sess); const t=c.present+c.absent+c.late; return t? c.present/t*100 : 0; });
+  const w=560,h=110,pad=14,stepX=(w-2*pad)/(rates.length-1);
+  const pt=(r,i)=>({x:pad+i*stepX, y:h-pad-(r/100)*(h-2*pad)});
+  const pts=rates.map((r,i)=>{const p=pt(r,i);return p.x+','+p.y;}).join(' ');
+  const dots=rates.map((r,i)=>{const p=pt(r,i);return `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="#0b2545"/>`;}).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:110px"><polyline points="${pts}" fill="none" stroke="#0b2545" stroke-width="2.5"/>${dots}</svg>`;
+}
+function heatmapHtml(){
+  const days=70, today0=new Date(); today0.setHours(0,0,0,0);
+  const map={};
+  students.forEach(s=>s.attendance.forEach(a=>{ if(!map[a.date]) map[a.date]={present:0,total:0}; map[a.date].total++; if(a.status==='Present') map[a.date].present++; }));
+  let cells='';
+  for(let i=days-1;i>=0;i--){
+    const d=new Date(today0); d.setDate(d.getDate()-i);
+    const label=d.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const rec=map[label];
+    let level=0;
+    if(rec){ const r=rec.present/rec.total; level = r>=.9?4 : r>=.7?3 : r>=.4?2 : 1; }
+    cells+=`<div class="heat-cell lvl${level}" title="${label}${rec?' \u2014 '+Math.round(rec.present/rec.total*100)+'% present':' \u2014 no records'}"></div>`;
+  }
+  return `<div class="heat-grid">${cells}</div><div class="heat-legend">Less<div class="heat-cell lvl0" style="background:#eae7dd"></div><div class="heat-cell lvl1"></div><div class="heat-cell lvl2"></div><div class="heat-cell lvl3"></div><div class="heat-cell lvl4"></div>More</div>`;
+}
+function renderDashboard(){
+  const rosterRows = students.map((s,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="viewDetail(${i},'dashboard')"><td>${esc(s.id)}</td><td>${esc(s.name)} ${badge(s)}</td><td>${esc(s.section)}</td><td>${bar(pct(s))}</td></tr>`).join('');
+  return sessionPanelHtml()+`<div class="grid">
+    <div class="stat"><div class="num" data-target="${students.length}">0</div><div class="lbl">Total Students</div></div>
+    <div class="stat green"><div class="num" data-target="${todayCount('Present')}">0</div><div class="lbl">Present Today</div></div>
+    <div class="stat red"><div class="num" data-target="${todayCount('Absent')}">0</div><div class="lbl">Absent Today</div></div>
+    <div class="stat gold"><div class="num" data-target="${avgRate().toFixed(1)}" data-suffix="%">0%</div><div class="lbl">Average Attendance Rate</div></div>
+  </div>
+  <div class="card"><div class="section-title">Attendance Trend (last sessions)</div>${trendChartSvg()}</div>
+  <div class="card"><div class="section-title">Attendance Calendar</div>${heatmapHtml()}</div>
+  <div class="card"><div class="section-title">Roster Summary</div>
+    ${students.length? `<table><tr><th>Student No.</th><th>Name</th><th>Section</th><th>Attendance Rate</th></tr>${rosterRows}</table>`
+      : emptyState('\u{1F393}','No students yet','Register your first student to start tracking attendance.','Register Student',"go('register')")}</div>`;
+}
+
+/* ---- Register ---- */
+function renderRegister(){
+  return `<div class="card" style="max-width:480px">
+    <label>Student Number</label>
+    <div style="display:flex;gap:8px"><input type="text" id="regId" placeholder="e.g. 21-0001" style="flex:1"></div>
+    <label>Student Name</label><input type="text" id="regName" placeholder="Full name">
+    <label>Section</label><input type="text" id="regSection" placeholder="e.g. ME-2A">
+    <button class="btn btn-primary btn-block" style="margin-top:20px" onclick="doRegister()">Register Student</button>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px">Tip: you can also scan an NFC tag from anywhere to auto-register with a placeholder name.</p>
+    ${msgBox()}</div>`;
+}
+function doRegister(){
+  const id=document.getElementById('regId').value.trim(), name=document.getElementById('regName').value.trim(), section=document.getElementById('regSection').value.trim();
+  if(!id||!name||!section){ state.msg='All fields are required.'; state.msgErr=true; render(); return; }
+  if(students.some(s=>s.id===id)){ state.msg='That student number already exists.'; state.msgErr=true; render(); return; }
+  students.push({id,name,section,attendance:[]});
+  save();
+  state.msg='Student registered successfully.'; state.msgErr=false;
+  render();
+}
+
+/* ---- List (sortable/filterable) ---- */
+function uniqueSections(){ return [...new Set(students.map(s=>s.section))].sort(); }
+function sortedFilteredStudents(){
+  let list = students.map((s,i)=>({s,i}));
+  if(state.listFilterSection) list = list.filter(x=>x.s.section===state.listFilterSection);
+  const key=state.listSort;
+  list.sort((a,b)=>{
+    if(key==='rate') return pct(b.s)-pct(a.s);
+    if(key==='section') return a.s.section.localeCompare(b.s.section);
+    return a.s.name.localeCompare(b.s.name);
+  });
+  return list;
+}
+function setListSort(v){ state.listSort=v; render(); }
+function setListFilter(v){ state.listFilterSection=v; render(); }
+function renderList(){
+  const list=sortedFilteredStudents();
+  const controls=`<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <select onchange="setListSort(this.value)" style="width:auto">
+      <option value="name" ${state.listSort==='name'?'selected':''}>Sort: Name</option>
+      <option value="section" ${state.listSort==='section'?'selected':''}>Sort: Section</option>
+      <option value="rate" ${state.listSort==='rate'?'selected':''}>Sort: Attendance Rate</option>
+    </select>
+    <select onchange="setListFilter(this.value)" style="width:auto">
+      <option value="">All Sections</option>
+      ${uniqueSections().map(sec=>`<option value="${esc(sec)}" ${state.listFilterSection===sec?'selected':''}>${esc(sec)}</option>`).join('')}
+    </select></div>`;
+  let body = list.length? `<div class="row-list"><table><tr><th>Student No.</th><th>Name</th><th>Section</th><th>Rate</th></tr>${
+    list.map((x,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="viewDetail(${x.i},'list')"><td>${esc(x.s.id)}</td><td>${esc(x.s.name)} ${badge(x.s)}</td><td>${esc(x.s.section)}</td><td>${bar(pct(x.s))}</td></tr>`).join('')}</table></div>`
+    : emptyState('\u{1F50D}','No matches','Try a different filter or section.','');
+  return `<div class="card">${controls}${body}</div>`;
+}
+
+/* ---- Record Attendance (manual) ---- */
+function renderRecordSelect(){
+  let body = students.length? `<div class="row-list"><table><tr><th>Student No.</th><th>Name</th><th>Section</th></tr>${
+    students.map((s,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="recordAttendanceNow(${i})"><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td>${esc(s.section)}</td></tr>`).join('')}</table></div>`
+    : emptyState('\u{1F393}','No students yet','Add students before recording attendance.','Register Student',"go('register')");
+  return `<div class="card">${body}${students.length?'<p style="color:var(--muted);font-size:12px;margin-top:10px">Tap a row to instantly log them in.</p>':''}</div>`;
+}
+
+/* ---- Student detail ---- */
+function studentDetailHtml(s, idx){
+  const rows = s.attendance.map((a,ri)=>({a,ri})).slice().reverse();
+  let hist = rows.length? `<table><tr><th>Day / Date</th><th>Period</th><th>Status</th><th></th></tr>${
+    rows.map(r=>`<tr><td>${esc(r.a.date)}</td><td>${esc(r.a.session||'\u2014')}</td><td>
+      <select onchange="changeAttendanceStatus(${idx},${r.ri},this.value)" style="width:auto;padding:4px 6px;font-size:12px">
+        <option value="Present" ${r.a.status==='Present'?'selected':''}>Present</option>
+        <option value="Absent" ${r.a.status==='Absent'?'selected':''}>Absent</option>
+        <option value="Late" ${r.a.status==='Late'?'selected':''}>Late</option>
+      </select></td><td><button class="btn btn-outline btn-sm" onclick="deleteAttendanceRecord(${idx},${r.ri})">Delete</button></td></tr>`).join('')}</table>`
+    : emptyState('\u{1F4C5}','No records yet','Attendance history will appear here.','');
+  const header = state.editingDetail
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+         <input type="text" id="editName" value="${esc(s.name)}" placeholder="Name" style="flex:1;min-width:140px">
+         <input type="text" id="editSection" value="${esc(s.section)}" placeholder="Section" style="flex:1;min-width:120px">
+         <button class="btn btn-primary" onclick="saveEditDetail(${idx})">Save</button>
+         <button class="btn btn-outline" onclick="cancelEditDetail()">Cancel</button></div>`
+    : `<p><b>${esc(s.name)}</b> ${badge(s)} &nbsp;\u2022&nbsp; ${esc(s.id)} &nbsp;\u2022&nbsp; ${esc(s.section)}
+         <button class="btn btn-outline btn-sm" style="margin-left:10px" onclick="startEditDetail()">Edit</button>
+         <button class="btn btn-danger btn-sm" onclick="deleteStudent(${idx})">Delete Student</button></p>`;
+  return `<div class="card"><div class="section-title">Student Information</div>${header}
+    <div class="grid" style="margin-top:14px">
+      <div class="stat green"><div class="num">${countStatus(s,'Present')}</div><div class="lbl">Present</div></div>
+      <div class="stat red"><div class="num">${countStatus(s,'Absent')}</div><div class="lbl">Absent</div></div>
+      <div class="stat gold"><div class="num">${countStatus(s,'Late')}</div><div class="lbl">Late</div></div>
+      <div class="stat"><div class="num">${pct(s).toFixed(1)}%</div><div class="lbl">Attendance Rate</div></div>
+    </div></div><div class="card"><div class="section-title">Attendance History</div><div class="row-list">${hist}</div></div>`;
+}
+function startEditDetail(){ state.editingDetail=true; render(); }
+function cancelEditDetail(){ state.editingDetail=false; render(); }
+function saveEditDetail(idx){
+  const name=document.getElementById('editName').value.trim(), section=document.getElementById('editSection').value.trim();
+  if(name) students[idx].name=name;
+  if(section) students[idx].section=section;
+  state.editingDetail=false; save(); render();
+}
+function deleteStudent(idx){
+  if(!confirm('Delete '+students[idx].name+' and all their attendance records? This cannot be undone.')) return;
+  students.splice(idx,1); save();
+  go('dashboard'); state.msg='Student removed.'; state.msgErr=false; render();
+}
+function changeAttendanceStatus(idx,ri,newStatus){ students[idx].attendance[ri].status=newStatus; save(); render(); }
+function deleteAttendanceRecord(idx,ri){
+  if(!confirm('Delete this attendance record?')) return;
+  students[idx].attendance.splice(ri,1); save(); render();
+}
+
+/* ---- Search ---- */
+function renderSearch(){
+  let result='';
+  if(state.searchTerm && state.searchResults.length===0) result=`<div class="card">${emptyState('\u{1F50D}','No student found','Check the spelling or try a partial name.','')}</div>`;
+  else if(state.searchResults.length===1) result=studentDetailHtml(students[state.searchResults[0]], state.searchResults[0]);
+  else if(state.searchResults.length>1) result=`<div class="card"><div class="section-title">${state.searchResults.length} matches</div>
+    <table><tr><th>Student No.</th><th>Name</th><th>Section</th></tr>${
+      state.searchResults.map((i,ri)=>`<tr class="clickable row-anim" style="animation-delay:${ri*25}ms" onclick="viewDetail(${i},'search')"><td>${esc(students[i].id)}</td><td>${esc(students[i].name)}</td><td>${esc(students[i].section)}</td></tr>`).join('')}</table></div>`;
+  else result=`<div class="card">${emptyState('\u{1F50E}','Search your roster','Type a full or partial name above and press Search.','')}</div>`;
+  return `<div class="card" style="max-width:600px">
+    <input type="text" id="searchBox" placeholder="Enter full or partial name..." value="${esc(state.searchTerm)}" onkeydown="if(event.key==='Enter')doSearch()">
+    <button class="btn btn-primary" style="margin-top:12px" onclick="doSearch()">Search</button></div>${result}`;
+}
+function doSearch(){
+  const term=document.getElementById('searchBox').value.trim();
+  state.searchTerm=term;
+  const t=term.toLowerCase();
+  state.searchResults = t? students.map((s,i)=>({s,i})).filter(x=>x.s.name.toLowerCase().includes(t)).map(x=>x.i) : [];
+  render();
+}
+
+/* ---- Report ---- */
+function sectionComparisonHtml(){
+  const secs={};
+  students.forEach(s=>{ (secs[s.section]=secs[s.section]||[]).push(s); });
+  const rows=Object.keys(secs).map(sec=>{ const list=secs[sec]; return {sec, avg:list.reduce((a,s)=>a+pct(s),0)/list.length, count:list.length}; }).sort((a,b)=>b.avg-a.avg);
+  if(!rows.length) return '';
+  return `<div class="card"><div class="section-title">Attendance by Section</div>${
+    rows.map(r=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="width:110px;font-size:13px">${esc(r.sec)}</div>${bar(r.avg)}<div style="font-size:11px;color:var(--muted)">(${r.count})</div></div>`).join('')}</div>`;
+}
+function renderReport(){
+  if(!students.length) return `<div class="card">${emptyState('\u{1F4C8}','Nothing to report yet','Register students to see attendance summaries here.','Register Student',"go('register')")}</div>`;
+  let body = `<table><tr><th>Student No.</th><th>Name</th><th>Present</th><th>Absent</th><th>Late</th><th>Attendance Rate</th></tr>${
+    students.map((s,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="viewDetail(${i},'report')"><td>${esc(s.id)}</td><td>${esc(s.name)} ${badge(s)}</td>
+    <td>${countStatus(s,'Present')}</td><td>${countStatus(s,'Absent')}</td><td>${countStatus(s,'Late')}</td><td>${bar(pct(s))}</td></tr>`).join('')}</table>`;
+  return sectionComparisonHtml()+`<div class="card">${body}<p style="color:var(--muted);font-size:12px;margin-top:10px">Click a row for full history.</p></div>`;
+}
+function viewDetail(i,prev){ state.selectedIndex=i; state.prevScreen=prev; go('detail'); }
+function renderDetail(){
+  const s=students[state.selectedIndex]; if(!s) return renderReport();
+  return studentDetailHtml(s, state.selectedIndex)+backBtn(state.prevScreen);
+}
+
+/* ---- Session history ---- */
+function renderSessions(){
+  const past = sessions.slice().reverse();
+  if(!past.length) return `<div class="card">${emptyState('\u23F1','No sessions yet','Start a class from the Dashboard to begin tracking periods.','Go to Dashboard',"go('dashboard')")}</div>`;
+  return `<div class="card"><table><tr><th>Period</th><th>Date</th><th>Status</th><th>Present</th><th>Absent</th><th>Late</th></tr>${
+    past.map((sess,i)=>{ const c=sessionCounts(sess); return `<tr class="row-anim" style="animation-delay:${i*25}ms"><td>${esc(sess.label)}</td><td>${esc(sess.date)}</td>
+      <td>${sess.endTime?'Ended':'<span style="color:var(--green)">Active</span>'}</td>
+      <td style="color:var(--green)">${c.present}</td><td style="color:var(--maroon)">${c.absent}</td><td style="color:var(--yellow)">${c.late}</td></tr>`; }).join('')}
+    </table></div>`;
+}
+
+/* ---- Data & Backup ---- */
+function renderClear(){
+  return `<div class="card" style="max-width:520px">
+    <div class="section-title">Backup</div>
+    <p style="color:var(--muted);font-size:13px">Your data lives only in this browser. Export a backup file periodically, or before switching devices/browsers.</p>
+    <button class="btn btn-primary" onclick="exportBackup()">\u2B07 Export Backup (.json)</button>
+    <label style="margin-top:18px">Restore from Backup</label>
+    <input type="file" accept="application/json" onchange="importBackup(this)">
+    ${msgBox()}</div>
+  <div class="card" style="max-width:520px">
+    <div class="section-title">Danger Zone</div>
+    <p>This permanently deletes <b>all</b> student and attendance records. This action cannot be undone.</p>
+    <button class="btn btn-danger" style="width:48%;margin-right:4%" onclick="doClear()">Yes, Clear All Data</button>
+    <button class="btn btn-outline" style="width:48%" onclick="go('dashboard')">Cancel</button></div>`;
+}
+function doClear(){
+  if(!confirm('This deletes ALL students and attendance permanently. Continue?')) return;
+  students=[]; sessions=[]; currentSessionId=null; save(); saveSessions();
+  go('dashboard'); state.msg='All data cleared.'; state.msgErr=false; render();
+}
+
+function render(){
+  const map={dashboard:renderDashboard,register:renderRegister,list:renderList,recordSelect:renderRecordSelect,
+    search:renderSearch,report:renderReport,detail:renderDetail,sessions:renderSessions,clear:renderClear};
+  document.getElementById('app').innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${map[state.screen]()}</div></div></div>${bottomNav()}`;
+  tickClock(); animateBars(); updateNavIndicator();
+  if(state.screen==='dashboard') animateStats();
+}
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+applyViewMode();
+render();
+if(!storageOK) showToast('Local storage is blocked in this browser \u2014 nothing will be saved between visits.','err');
+</script>
+</body>
+</html>
