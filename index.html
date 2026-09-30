@@ -106,6 +106,11 @@ tr.clickable:hover{background:#f7f6f1;}
 .nfc-toast.show{opacity:1;transform:translateY(0);pointer-events:auto;}
 .nfc-toast.ok{border-left-color:var(--green);}
 .nfc-toast.err{border-left-color:var(--maroon);}
+.no-anim .content,.no-anim .row-anim{animation:none!important;}
+.btn-on{background:var(--green);color:#fff;border-color:var(--green);}
+.hint{color:var(--muted);font-size:12px;margin:10px 0 0;}
+.add-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.add-row select{flex:1;min-width:160px;width:auto;}
 @keyframes confettiFall{to{transform:translateY(100vh) rotate(360deg);opacity:0;}}
 [data-view="tablet"] .sidebar{width:78px;flex:0 0 78px;}
 [data-view="tablet"] .brand p,[data-view="tablet"] .nav a .label{display:none;}
@@ -131,6 +136,9 @@ let students = [];
 try{ students = JSON.parse(localStorage.getItem('attendit_students')||'[]'); }catch(e){ students = []; }
 let sessions = [];
 try{ sessions = JSON.parse(localStorage.getItem('attendit_sessions')||'[]'); }catch(e){ sessions = []; }
+let periods = [];
+try{ periods = JSON.parse(localStorage.getItem('attendit_periods')||'[]'); }catch(e){ periods = []; }
+let quiet = false, lastScreen = null;
 let currentSessionId = (function(){ try{ return localStorage.getItem('attendit_current_session'); }catch(e){ return null; } })();
 
 let state = { screen:'dashboard', selectedIndex:-1, prevScreen:'dashboard', searchTerm:'', searchResults:[], msg:'', msgErr:false,
@@ -144,6 +152,7 @@ function saveSessions(){
     else localStorage.removeItem('attendit_current_session');
   }catch(e){}
 }
+function savePeriods(){ try{ localStorage.setItem('attendit_periods', JSON.stringify(periods)); }catch(e){} }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function today(){ return new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
 function countStatus(s,status){ return s.attendance.filter(a=>a.status===status).length; }
@@ -198,66 +207,86 @@ function showToast(msg,type){
   toastTimer=setTimeout(()=>t.classList.remove('show'),5000);
 }
 
-/* ---- NFC ---- */
+/* ---- NFC (stays on until switched off) ---- */
+let nfcReader = null, nfcAbort = null;
 async function globalScanNFC(){
+  if(nfcReader){ try{ nfcAbort.abort(); }catch(e){} nfcReader=null; nfcAbort=null; showToast('NFC scanning turned off.'); render(); return; }
   if(!('NDEFReader' in window)){ showToast('NFC isn\u2019t supported on this browser/device.','err'); return; }
   try{
-    showToast('Ready \u2014 tap the tag against the device now\u2026');
-    const reader = new NDEFReader();
-    await reader.scan();
-    let gotReading=false;
-    reader.onreading = (event) => { gotReading=true; handleScannedTag(event.serialNumber || 'TAG-'+Date.now()); };
+    const reader = new NDEFReader(); nfcAbort = new AbortController();
+    await reader.scan({signal:nfcAbort.signal});
+    nfcReader = reader;
+    reader.onreading = (event) => handleScannedTag(event.serialNumber || 'TAG-'+Date.now());
     reader.onreadingerror = () => showToast('A tag was sensed but couldn\u2019t be read.','err');
-    setTimeout(()=>{ if(!gotReading) showToast('No readable tag detected within 12s.','err'); },12000);
-  }catch(e){ showToast('NFC permission denied, or unavailable right now.','err'); }
+    showToast('NFC on \u2014 tap each student\u2019s tag. Tap the button again to turn it off.','ok');
+    quiet=true; render();
+  }catch(e){ nfcReader=null; nfcAbort=null; showToast('NFC permission denied, or unavailable right now.','err'); }
 }
 function handleScannedTag(id){
-  const idx = students.findIndex(s=>s.id===id);
-  if(idx>=0){ recordAttendanceNow(idx); }
-  else{
+  let idx = students.findIndex(s=>s.id===id), isNew=false;
+  if(idx<0){
     const n = students.length+1;
     students.push({id, name:'Student '+n, section:'Block A', attendance:[]});
-    save();
-    state.selectedIndex = students.length-1; state.prevScreen='dashboard';
-    go('detail'); state.editingDetail=true;
-    showToast('New tag registered as \u201cStudent '+n+'.\u201d Edit below if you\u2019d like.','ok');
-    render();
+    idx = students.length-1; isNew=true; save();
   }
+  addToRoster(getActivePeriod(), id);          // known students join this period automatically
+  recordAttendanceNow(idx, isNew);
 }
 
-/* ---- Class sessions ---- */
+/* ---- Periods & class sessions ---- */
 function getActiveSession(){ return sessions.find(s=>s.id===currentSessionId) || null; }
+function getActivePeriod(){ const s=getActiveSession(); return s ? (periods.find(p=>p.id===s.periodId)||null) : null; }
+function rosterEntries(p){ return students.map((s,i)=>({s,i})).filter(x=>p.studentIds.includes(x.s.id)); }
+function sessionRecord(s,sess){ return s.attendance.find(a=>a.session===sess.label && a.date===sess.date) || null; }
+function addToRoster(p,id){ if(p && !p.studentIds.includes(id)){ p.studentIds.push(id); savePeriods(); } }
 function computeStatus(){
   const sess=getActiveSession(); if(!sess) return 'Present';
   return (Date.now()-sess.startTime)/60000 <= sess.lateThreshold ? 'Present' : 'Late';
 }
+function onPeriodPick(v){
+  const w=document.getElementById('newPeriodWrap'); if(w) w.style.display = v==='__new__' ? 'block' : 'none';
+  const p=periods.find(x=>x.id===v), t=document.getElementById('sessionThreshold'); if(p && t) t.value=p.lateThreshold;
+}
 function startClass(){
-  const label=(document.getElementById('sessionLabel').value.trim())||('Period '+(sessions.length+1));
+  const sel=document.getElementById('sessionPeriod');
   const threshold=parseInt(document.getElementById('sessionThreshold').value,10)||30;
-  const sess={id:'sess-'+Date.now(), label, date:today(), startTime:Date.now(), endTime:null, lateThreshold:threshold};
+  let period = sel ? periods.find(p=>p.id===sel.value) : null;
+  if(!period){
+    const label=(document.getElementById('sessionLabel').value.trim())||('Period '+(periods.length+1));
+    period = periods.find(p=>p.label.toLowerCase()===label.toLowerCase());   // reuse instead of duplicating
+    if(!period){ period={id:'per-'+Date.now(), label, lateThreshold:threshold, studentIds:[]}; periods.push(period); }
+  }
+  period.lateThreshold=threshold; savePeriods();
+  const d=today(), dup=sessions.filter(x=>x.periodId===period.id && x.date===d).length;
+  const label = dup ? period.label+' ('+(dup+1)+')' : period.label;
+  const sess={id:'sess-'+Date.now(), periodId:period.id, label, date:d, startTime:Date.now(), endTime:null, lateThreshold:threshold};
   sessions.push(sess); currentSessionId=sess.id; saveSessions();
   showToast('\u201C'+label+'\u201D started. Scans within '+threshold+' min count as Present.','ok');
-  render();
+  go('recordSelect');
 }
 function endClass(){
   const sess=getActiveSession(); if(!sess) return;
+  const per=getActivePeriod();
+  const pool = per ? rosterEntries(per).map(x=>x.s) : students;   // sessions from older versions have no period: whole list
   let n=0;
-  students.forEach(s=>{
-    if(!s.attendance.some(a=>a.session===sess.label && a.date===sess.date)){ s.attendance.push({date:sess.date,status:'Absent',session:sess.label}); n++; }
+  pool.forEach(s=>{
+    if(!sessionRecord(s,sess)){ s.attendance.push({date:sess.date,status:'Absent',session:sess.label}); n++; }
   });
   sess.endTime=Date.now(); currentSessionId=null;
   save(); saveSessions();
   showToast('\u201C'+sess.label+'\u201D ended. '+n+' student(s) marked Absent.','ok');
   render();
 }
-function recordAttendanceNow(idx){
-  const s=students[idx], status=computeStatus(), sess=getActiveSession();
+function recordAttendanceNow(idx,isNew){
+  const s=students[idx], sess=getActiveSession(); if(!s) return;
+  if(sess && sessionRecord(s,sess)){ showToast(s.name+' is already marked for '+sess.label+'.','err'); return; }
+  const status=computeStatus();
   s.attendance.push({date:today(), status, session: sess?sess.label:'Unscheduled'});
   save();
-  showToast(s.name+' marked '+status+(sess?' \u2014 '+sess.label:'')+'.','ok');
+  showToast((isNew?'New tag registered as \u201C'+s.name+'\u201D \u2014 rename in Student List. ':'')+s.name+' marked '+status+(sess?' \u2014 '+sess.label:'')+'.','ok');
   const total=s.attendance.length;
   if(total===1 || total%10===0) fireConfetti();
-  go('dashboard');
+  quiet=true; render();          // stay on the current screen
 }
 function sessionCounts(sess){
   let present=0,absent=0,late=0;
@@ -265,9 +294,59 @@ function sessionCounts(sess){
   return {present,absent,late};
 }
 
+/* ---- Period roster editing ---- */
+function addToPeriodFromSelect(pi){
+  const el=document.getElementById('addSel_'+pi), p=periods[pi]; if(!el||!p||!el.value) return;
+  addToRoster(p, el.value); quiet=true; render();
+}
+function addAllToPeriod(pi){
+  const p=periods[pi]; if(!p) return;
+  students.forEach(s=>addToRoster(p,s.id)); quiet=true; render();
+}
+function removeFromPeriod(pi,idx){
+  const p=periods[pi], s=students[idx]; if(!p||!s) return;
+  if(!confirm('Remove '+s.name+' from '+p.label+'? Their past attendance is kept.')) return;
+  p.studentIds=p.studentIds.filter(id=>id!==s.id); savePeriods(); quiet=true; render();
+}
+function renamePeriod(pi){
+  const p=periods[pi]; if(!p) return;
+  const v=prompt('New name for this period:', p.label); if(v===null) return;
+  const name=v.trim(); if(!name) return;
+  p.label=name; savePeriods(); render();
+}
+function deletePeriod(pi){
+  const p=periods[pi]; if(!p) return;
+  if(getActivePeriod()===p){ alert('End the active class before deleting this period.'); return; }
+  if(!confirm('Delete the period \u201C'+p.label+'\u201D and its saved roster? Students and attendance records are not deleted.')) return;
+  periods.splice(pi,1); savePeriods(); render();
+}
+function addControlsHtml(pi){
+  const p=periods[pi]; if(!p) return '';
+  const avail=students.filter(s=>!p.studentIds.includes(s.id));
+  return `<div class="add-row">
+    ${avail.length? `<select id="addSel_${pi}"><option value="">Add a registered student\u2026</option>${avail.map(s=>`<option value="${esc(s.id)}">${esc(s.name)} \u2014 ${esc(s.section)}</option>`).join('')}</select>
+      <button class="btn btn-outline btn-sm" onclick="addToPeriodFromSelect(${pi})">Add</button>
+      <button class="btn btn-outline btn-sm" onclick="addAllToPeriod(${pi})">Add all (${avail.length})</button>`
+      : `<span style="color:var(--muted);font-size:13px;flex:1">Every registered student is already in this period.</span>`}
+    <button class="btn btn-primary btn-sm" onclick="go('register')">Register new</button></div>`;
+}
+/* Live roster: shown while a class is running (dashboard + Record Attendance) */
+function liveRosterCard(){
+  const sess=getActiveSession(); if(!sess) return '';
+  const per=getActivePeriod(), pi=per?periods.indexOf(per):-1;
+  const entries = per ? rosterEntries(per) : students.map((s,i)=>({s,i}));
+  const marked = entries.filter(x=>sessionRecord(x.s,sess)).length;
+  let body = entries.length ? `<div class="row-list"><table><tr><th>Student No.</th><th>Name</th><th>Section</th><th>This class</th></tr>${
+    entries.map((x,i)=>{ const r=sessionRecord(x.s,sess);
+      return `<tr class="${r?'':'clickable '}row-anim" style="animation-delay:${i*25}ms" ${r?'':`onclick="recordAttendanceNow(${x.i})"`}><td>${esc(x.s.id)}</td><td>${esc(x.s.name)}</td><td>${esc(x.s.section)}</td><td>${r?pill(r.status):'<span style="color:var(--muted);font-size:12px">Tap to mark</span>'}</td></tr>`; }).join('')}</table></div>`
+    : emptyState('\u{1F393}','No students in this period yet','Scan a tag, add a registered student below, or register a new one.','');
+  return `<div class="card"><div class="section-title">${esc(sess.label)} \u2014 ${marked} of ${entries.length} marked</div>${body}
+    <p class="hint">Tap a row (or scan an NFC tag) to log a student in. You stay on this screen.</p>${pi>=0?addControlsHtml(pi):''}</div>`;
+}
+
 /* ---- Backup ---- */
 function exportBackup(){
-  const data=JSON.stringify({students,sessions},null,2);
+  const data=JSON.stringify({students,sessions,periods},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -281,7 +360,7 @@ function importBackup(input){
     try{
       const data=JSON.parse(reader.result);
       if(!Array.isArray(data.students)) throw new Error('bad file');
-      students=data.students; sessions=Array.isArray(data.sessions)?data.sessions:[];
+      students=data.students; sessions=Array.isArray(data.sessions)?data.sessions:[]; periods=Array.isArray(data.periods)?data.periods:[]; savePeriods();
       currentSessionId=null; save(); saveSessions();
       state.msg='Backup restored successfully.'; state.msgErr=false;
       go('dashboard');
@@ -311,14 +390,15 @@ function emptyState(icon,title,sub,ctaLabel,ctaFn){
 }
 
 const NAV=[['dashboard','\u25A3','Dashboard'],['register','\u002B','Register Student'],['list','\u2630','Student List'],
-  ['recordSelect','\u2713','Record Attendance'],['search','\u26B2','Search Student'],['report','\u2637','Attendance Report'],
+  ['recordSelect','\u2713','Record Attendance'],['periods','\u2261','Periods'],['search','\u26B2','Search Student'],['report','\u2637','Attendance Report'],
   ['sessions','\u23F1','Session History'],['clear','\u2716','Data & Backup']];
 
 const SCREEN_TITLES={dashboard:['Dashboard','Overview of registered students and attendance'],
   register:['Register Student','Add a new student to the roster'],list:['Student List','All currently registered students'],
-  recordSelect:['Record Attendance','Tap a student to instantly log them in'],search:['Search Student','Look up by full or partial name'],
+  recordSelect:['Record Attendance','Mark students for the running class without leaving this screen'],search:['Search Student','Look up by full or partial name'],
   report:['Attendance Report','Consolidated summary for all students'],detail:['Student Record','Full attendance history'],
   sessions:['Session History','Past class periods and their outcomes'],
+  periods:['Periods','Saved class periods and the students in each'],
   clear:['Data & Backup','Export, restore, or permanently clear records']};
 
 function isActive(key){
@@ -330,7 +410,7 @@ function isActive(key){
 function sidebar(){
   return `<aside class="sidebar"><div class="brand"><h1 class="serif">ATTEND-IT</h1><p>Attendance Management System</p></div>
     <nav class="nav">${NAV.map(n=>`<a class="${isActive(n[0])?'active':''}" onclick="go('${n[0]}')"><span class="icon">${n[1]}</span><span class="label">${n[2]}</span></a>`).join('')}<div class="nav-indicator" id="navIndicator"></div></nav>
-    <div class="foot">Local session \u2014 v1.3</div></aside>`;
+    <div class="foot">Local session \u2014 v1.4</div></aside>`;
 }
 function bottomNav(){
   return `<nav class="bottom-nav">${NAV.map(n=>`<a class="${isActive(n[0])?'active':''}" onclick="go('${n[0]}')"><span class="icon">${n[1]}</span><span>${n[2].split(' ')[0]}</span></a>`).join('')}</nav>`;
@@ -344,7 +424,7 @@ function topbar(){
   const t=SCREEN_TITLES[state.screen]||['',''];
   return `<div class="topbar"><div><h2>${t[0]}</h2><p>${t[1]}</p></div>
     <div class="topbar-right">
-      <button class="btn btn-outline btn-sm" onclick="globalScanNFC()">\u{1F4E1} NFC</button>
+      <button class="btn btn-sm ${nfcReader?'btn-on':'btn-outline'}" onclick="globalScanNFC()">\u{1F4E1} NFC${nfcReader?' on':''}</button>
       <div class="clock-badge"><span class="clock-dot"></span><div><div class="clock-time" id="liveClockTop"></div><div class="clock-date">${today()}</div></div></div>
       ${viewSwitcher()}
     </div></div>${storageOK?'':'<div class="warn-banner">\u26A0 Your browser is blocking local storage \u2014 changes here won\u2019t be saved. Try a normal (non-private) browser window.</div>'}`;
@@ -360,12 +440,17 @@ function sessionPanelHtml(){
       <p><b>${esc(sess.label)}</b> started ${elapsedMin} min ago &nbsp;\u2022&nbsp; Late after ${sess.lateThreshold} min</p>
       <button class="btn btn-danger" onclick="endClass()">End Class</button></div>`;
   }
+  const first=periods[0];
   return `<div class="card"><div class="section-title">Class Session \u2014 Not Started</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-      <div style="flex:1;min-width:160px"><label style="margin:0 0 6px">Period Label</label><input type="text" id="sessionLabel" placeholder="Period ${sessions.length+1}"></div>
-      <div style="width:120px"><label style="margin:0 0 6px">Late After (min)</label><input type="text" id="sessionThreshold" value="30"></div>
+      <div style="flex:1;min-width:180px"><label style="margin:0 0 6px">Period</label>
+        <select id="sessionPeriod" onchange="onPeriodPick(this.value)">
+          ${periods.map(p=>`<option value="${esc(p.id)}">${esc(p.label)} (${p.studentIds.length} students)</option>`).join('')}
+          <option value="__new__">+ New period\u2026</option></select></div>
+      <div id="newPeriodWrap" style="flex:1;min-width:160px;display:${periods.length?'none':'block'}"><label style="margin:0 0 6px">New Period Name</label><input type="text" id="sessionLabel" placeholder="Period ${periods.length+1}"></div>
+      <div style="width:120px"><label style="margin:0 0 6px">Late After (min)</label><input type="text" id="sessionThreshold" value="${first?first.lateThreshold:30}"></div>
       <button class="btn btn-primary" onclick="startClass()">Start Class</button>
-    </div><p style="color:var(--muted);font-size:12px;margin:10px 0 0">Scans before a class starts are marked Present by default.</p></div>`;
+    </div><p class="hint">Each period remembers its own students, so you only register someone once. Scans before a class starts are marked Present by default.</p></div>`;
 }
 function trendChartSvg(){
   const past = sessions.filter(s=>s.endTime).slice(-10);
@@ -393,8 +478,10 @@ function heatmapHtml(){
   return `<div class="heat-grid">${cells}</div><div class="heat-legend">Less<div class="heat-cell lvl0" style="background:#eae7dd"></div><div class="heat-cell lvl1"></div><div class="heat-cell lvl2"></div><div class="heat-cell lvl3"></div><div class="heat-cell lvl4"></div>More</div>`;
 }
 function renderDashboard(){
-  const rosterRows = students.map((s,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="viewDetail(${i},'dashboard')"><td>${esc(s.id)}</td><td>${esc(s.name)} ${badge(s)}</td><td>${esc(s.section)}</td><td>${bar(pct(s))}</td></tr>`).join('');
-  return sessionPanelHtml()+`<div class="grid">
+  const per=getActivePeriod();
+  const entries = per ? rosterEntries(per) : students.map((s,i)=>({s,i}));
+  const rosterRows = entries.map((x,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="viewDetail(${x.i},'dashboard')"><td>${esc(x.s.id)}</td><td>${esc(x.s.name)} ${badge(x.s)}</td><td>${esc(x.s.section)}</td><td>${bar(pct(x.s))}</td></tr>`).join('');
+  return sessionPanelHtml()+liveRosterCard()+`<div class="grid">
     <div class="stat"><div class="num" data-target="${students.length}">0</div><div class="lbl">Total Students</div></div>
     <div class="stat green"><div class="num" data-target="${todayCount('Present')}">0</div><div class="lbl">Present Today</div></div>
     <div class="stat red"><div class="num" data-target="${todayCount('Absent')}">0</div><div class="lbl">Absent Today</div></div>
@@ -402,8 +489,8 @@ function renderDashboard(){
   </div>
   <div class="card"><div class="section-title">Attendance Trend (last sessions)</div>${trendChartSvg()}</div>
   <div class="card"><div class="section-title">Attendance Calendar</div>${heatmapHtml()}</div>
-  <div class="card"><div class="section-title">Roster Summary</div>
-    ${students.length? `<table><tr><th>Student No.</th><th>Name</th><th>Section</th><th>Attendance Rate</th></tr>${rosterRows}</table>`
+  <div class="card"><div class="section-title">Roster Summary${per?' \u2014 '+esc(per.label):''}</div>
+    ${entries.length? `<table><tr><th>Student No.</th><th>Name</th><th>Section</th><th>Attendance Rate</th></tr>${rosterRows}</table>`
       : emptyState('\u{1F393}','No students yet','Register your first student to start tracking attendance.','Register Student',"go('register')")}</div>`;
 }
 
@@ -414,6 +501,7 @@ function renderRegister(){
     <div style="display:flex;gap:8px"><input type="text" id="regId" placeholder="e.g. 21-0001" style="flex:1"></div>
     <label>Student Name</label><input type="text" id="regName" placeholder="Full name">
     <label>Section</label><input type="text" id="regSection" placeholder="e.g. ME-2A">
+    ${periods.length? `<label>Add to Period</label><select id="regPeriod"><option value="">\u2014 None \u2014</option>${periods.map(p=>`<option value="${esc(p.id)}" ${getActivePeriod()&&getActivePeriod().id===p.id?'selected':''}>${esc(p.label)}</option>`).join('')}</select>`:''}
     <button class="btn btn-primary btn-block" style="margin-top:20px" onclick="doRegister()">Register Student</button>
     <p style="color:var(--muted);font-size:12px;margin-top:10px">Tip: you can also scan an NFC tag from anywhere to auto-register with a placeholder name.</p>
     ${msgBox()}</div>`;
@@ -424,6 +512,8 @@ function doRegister(){
   if(students.some(s=>s.id===id)){ state.msg='That student number already exists.'; state.msgErr=true; render(); return; }
   students.push({id,name,section,attendance:[]});
   save();
+  const rp=document.getElementById('regPeriod');
+  if(rp && rp.value) addToRoster(periods.find(p=>p.id===rp.value), id);
   state.msg='Student registered successfully.'; state.msgErr=false;
   render();
 }
@@ -461,12 +551,29 @@ function renderList(){
   return `<div class="card">${controls}${body}</div>`;
 }
 
-/* ---- Record Attendance (manual) ---- */
 function renderRecordSelect(){
-  let body = students.length? `<div class="row-list"><table><tr><th>Student No.</th><th>Name</th><th>Section</th></tr>${
-    students.map((s,i)=>`<tr class="clickable row-anim" style="animation-delay:${i*25}ms" onclick="recordAttendanceNow(${i})"><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td>${esc(s.section)}</td></tr>`).join('')}</table></div>`
-    : emptyState('\u{1F393}','No students yet','Add students before recording attendance.','Register Student',"go('register')");
-  return `<div class="card">${body}${students.length?'<p style="color:var(--muted);font-size:12px;margin-top:10px">Tap a row to instantly log them in.</p>':''}</div>`;
+  if(!getActiveSession()){
+    return `<div class="card" style="border-left:4px solid var(--gold)"><p style="margin:0 0 4px"><b>No class is running.</b></p>
+      <p class="hint" style="margin:0">Pick a saved period (or create one) and start the class. Its students will appear here to mark.</p></div>`+sessionPanelHtml();
+  }
+  return sessionPanelHtml()+liveRosterCard();
+}
+
+/* ---- Periods screen ---- */
+function renderPeriods(){
+  if(!periods.length) return `<div class="card">${emptyState('\u{1F4DA}','No periods yet','Start a class and choose \u201CNew period\u201D to save one.','Go to Dashboard',"go('dashboard')")}</div>`;
+  const act=getActivePeriod();
+  return periods.map((p,pi)=>{
+    const entries=rosterEntries(p);
+    const rows = entries.length? `<table><tr><th>Student No.</th><th>Name</th><th>Section</th><th></th></tr>${
+      entries.map(x=>`<tr><td>${esc(x.s.id)}</td><td>${esc(x.s.name)}</td><td>${esc(x.s.section)}</td><td><button class="btn btn-outline btn-sm" onclick="removeFromPeriod(${pi},${x.i})">Remove</button></td></tr>`).join('')}</table>`
+      : `<p class="hint">No students in this period yet.</p>`;
+    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div><b class="serif" style="font-size:17px;color:var(--navy)">${esc(p.label)}</b>${act===p?' <span class="pill pill-present">Running</span>':''}
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">${entries.length} student${entries.length===1?'':'s'} \u2022 Late after ${p.lateThreshold} min</div></div>
+      <div><button class="btn btn-outline btn-sm" onclick="renamePeriod(${pi})">Rename</button> <button class="btn btn-danger btn-sm" onclick="deletePeriod(${pi})">Delete</button></div></div>
+      <div class="row-list">${rows}</div>${addControlsHtml(pi)}</div>`;
+  }).join('');
 }
 
 /* ---- Student detail ---- */
@@ -507,6 +614,7 @@ function saveEditDetail(idx){
 }
 function deleteStudent(idx){
   if(!confirm('Delete '+students[idx].name+' and all their attendance records? This cannot be undone.')) return;
+  const gone=students[idx].id; periods.forEach(p=>{ p.studentIds=p.studentIds.filter(id=>id!==gone); }); savePeriods();
   students.splice(idx,1); save();
   go('dashboard'); state.msg='Student removed.'; state.msgErr=false; render();
 }
@@ -587,16 +695,23 @@ function renderClear(){
 }
 function doClear(){
   if(!confirm('This deletes ALL students and attendance permanently. Continue?')) return;
-  students=[]; sessions=[]; currentSessionId=null; save(); saveSessions();
+  students=[]; sessions=[]; periods=[]; currentSessionId=null; save(); saveSessions(); savePeriods();
   go('dashboard'); state.msg='All data cleared.'; state.msgErr=false; render();
 }
 
 function render(){
-  const map={dashboard:renderDashboard,register:renderRegister,list:renderList,recordSelect:renderRecordSelect,
+  const map={dashboard:renderDashboard,register:renderRegister,list:renderList,recordSelect:renderRecordSelect,periods:renderPeriods,
     search:renderSearch,report:renderReport,detail:renderDetail,sessions:renderSessions,clear:renderClear};
-  document.getElementById('app').innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${map[state.screen]()}</div></div></div>${bottomNav()}`;
+  const same = lastScreen===state.screen; lastScreen=state.screen;
+  const keepQuiet = quiet; quiet=false;
+  const winY = window.scrollY, rl=document.querySelector('.row-list'), rlY = rl?rl.scrollTop:0;
+  const app=document.getElementById('app');
+  app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${map[state.screen]()}</div></div></div>${bottomNav()}`;
+  app.classList.toggle('no-anim', keepQuiet);
+  if(same){ window.scrollTo(0,winY); const nrl=document.querySelector('.row-list'); if(nrl) nrl.scrollTop=rlY; }
   tickClock(); animateBars(); updateNavIndicator();
-  if(state.screen==='dashboard') animateStats();
+  if(state.screen==='dashboard' && !keepQuiet) animateStats();
+  else if(state.screen==='dashboard') document.querySelectorAll('.stat .num[data-target]').forEach(el=>{ el.textContent=(parseFloat(el.dataset.target)||0).toFixed(el.dataset.target.includes('.')?1:0)+(el.dataset.suffix||''); });
 }
 if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
 applyViewMode();
